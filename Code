@@ -1,0 +1,154 @@
+import tkinter as tk
+import RPi.GPIO as GPIO
+
+# === GPIO Setup ===
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+# --- Motor 1: 100 RPM (Left Wheel) ---
+M1_IN1 = 17
+M1_IN2 = 18
+M1_EN = 12
+
+# --- Motor 2: 100 RPM (Right Wheel) ---
+M2_IN1 = 27
+M2_IN2 = 22
+M2_EN = 13
+
+# --- Motor 3: 300 RPM (Mop Motor) ---
+M3_IN1 = 23
+M3_IN2 = 24
+M3_EN = 19
+
+# Setup pins
+motor_pins = [M1_IN1, M1_IN2, M2_IN1, M2_IN2, M3_IN1, M3_IN2]
+for pin in motor_pins:
+    GPIO.setup(pin, GPIO.OUT)
+    GPIO.output(pin, GPIO.LOW)
+
+GPIO.setup(M1_EN, GPIO.OUT)
+GPIO.setup(M2_EN, GPIO.OUT)
+GPIO.setup(M3_EN, GPIO.OUT)
+
+pwm_m1 = GPIO.PWM(M1_EN, 1000)
+pwm_m2 = GPIO.PWM(M2_EN, 1000)
+pwm_m3 = GPIO.PWM(M3_EN, 1000)
+
+pwm_m1.start(0)
+pwm_m2.start(0)
+pwm_m3.start(0)
+
+# === Speed Control Variables ===
+wheel_speed = 70
+mop_speed = 80
+
+# === Movement Functions ===
+def stop_all():
+    for pin in motor_pins:
+        GPIO.output(pin, GPIO.LOW)
+    pwm_m1.ChangeDutyCycle(0)
+    pwm_m2.ChangeDutyCycle(0)
+    pwm_m3.ChangeDutyCycle(0)
+
+def move_forward():
+    GPIO.output(M1_IN1, GPIO.HIGH)
+    GPIO.output(M1_IN2, GPIO.LOW)
+    GPIO.output(M2_IN1, GPIO.HIGH)
+    GPIO.output(M2_IN2, GPIO.LOW)
+    pwm_m1.ChangeDutyCycle(wheel_speed)
+    pwm_m2.ChangeDutyCycle(wheel_speed)
+
+def move_backward():
+    GPIO.output(M1_IN1, GPIO.LOW)
+    GPIO.output(M1_IN2, GPIO.HIGH)
+    GPIO.output(M2_IN1, GPIO.LOW)
+    GPIO.output(M2_IN2, GPIO.HIGH)
+    pwm_m1.ChangeDutyCycle(wheel_speed)
+    pwm_m2.ChangeDutyCycle(wheel_speed)
+
+def turn_left():
+    GPIO.output(M1_IN1, GPIO.LOW)
+    GPIO.output(M1_IN2, GPIO.HIGH)
+    GPIO.output(M2_IN1, GPIO.HIGH)
+    GPIO.output(M2_IN2, GPIO.LOW)
+    pwm_m1.ChangeDutyCycle(wheel_speed)
+    pwm_m2.ChangeDutyCycle(wheel_speed)
+
+def turn_right():
+    GPIO.output(M1_IN1, GPIO.HIGH)
+    GPIO.output(M1_IN2, GPIO.LOW)
+    GPIO.output(M2_IN1, GPIO.LOW)
+    GPIO.output(M2_IN2, GPIO.HIGH)
+    pwm_m1.ChangeDutyCycle(wheel_speed)
+    pwm_m2.ChangeDutyCycle(wheel_speed)
+
+def mop_on():
+    GPIO.output(M3_IN1, GPIO.HIGH)
+    GPIO.output(M3_IN2, GPIO.LOW)
+    pwm_m3.ChangeDutyCycle(mop_speed)
+
+def mop_reverse():
+    GPIO.output(M3_IN1, GPIO.LOW)
+    GPIO.output(M3_IN2, GPIO.HIGH)
+    pwm_m3.ChangeDutyCycle(mop_speed)
+
+def mop_off():
+    GPIO.output(M3_IN1, GPIO.LOW)
+    GPIO.output(M3_IN2, GPIO.LOW)
+    pwm_m3.ChangeDutyCycle(0)
+
+# === GUI Setup ===
+window = tk.Tk()
+window.title("Floor Cleaner Robot Controller")
+window.geometry("400x600")
+window.configure(bg="#f0f8ff")
+
+btn_style = {
+    "width": 20,
+    "font": ("Arial", 11),
+    "padx": 5,
+    "pady": 5
+}
+
+# --- Movement Buttons ---
+tk.Button(window, text="Forward", bg="#00bfff", fg="white", command=move_forward, **btn_style).pack(pady=5)
+tk.Button(window, text="Backward", bg="#1e90ff", fg="white", command=move_backward, **btn_style).pack(pady=5)
+tk.Button(window, text="Left", bg="#4682b4", fg="white", command=turn_left, **btn_style).pack(pady=5)
+tk.Button(window, text="Right", bg="#4169e1", fg="white", command=turn_right, **btn_style).pack(pady=5)
+tk.Button(window, text="Stop", bg="#ff8c00", fg="white", command=stop_all, **btn_style).pack(pady=10)
+
+# --- Speed Sliders ---
+def update_wheel_speed(val):
+    global wheel_speed
+    wheel_speed = int(val)
+
+def update_mop_speed(val):
+    global mop_speed
+    mop_speed = int(val)
+
+tk.Label(window, text="Wheel Speed", bg="#f0f8ff", font=("Arial", 10)).pack()
+tk.Scale(window, from_=0, to=100, orient=tk.HORIZONTAL, command=update_wheel_speed, length=250).pack(pady=5)
+
+tk.Label(window, text="Mop Speed", bg="#f0f8ff", font=("Arial", 10)).pack()
+tk.Scale(window, from_=0, to=100, orient=tk.HORIZONTAL, command=update_mop_speed, length=250).pack(pady=5)
+
+# --- Mop Controls ---
+tk.Label(window, text="--- Mop Controls ---", bg="#f0f8ff", font=("Arial", 12, "bold")).pack(pady=10)
+
+tk.Button(window, text="Mop ON", bg="#3cb371", fg="white", command=mop_on, **btn_style).pack(pady=5)
+tk.Button(window, text="Mop Reverse", bg="#2e8b57", fg="white", command=mop_reverse, **btn_style).pack(pady=5)
+tk.Button(window, text="Mop OFF", bg="#6b8e23", fg="white", command=mop_off, **btn_style).pack(pady=5)
+
+# --- Exit Button ---
+def on_exit():
+    stop_all()
+    pwm_m1.stop()
+    pwm_m2.stop()
+    pwm_m3.stop()
+    GPIO.cleanup()
+    window.destroy()
+
+tk.Button(window, text="Exit", bg="red", fg="white", command=on_exit, **btn_style).pack(pady=20)
+
+# Start GUI Loop
+window.mainloop()
